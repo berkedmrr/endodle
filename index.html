@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>EndoTumordle — Daily Endoscopy Puzzle</title>
+  <style>
+    /* Professional, modern UI: soft glass, clear typography, micro-animations */
+    :root{
+      --bg-1:#071227; --bg-2:#08182b; --card:#071428; --muted:#9fb0c8; --accent:#06b6d4; --accent-2:#7c3aed;
+      --success:#16a34a; --warn:#f59e0b; --danger:#ef4444; --glass: rgba(255,255,255,0.03);
+      --radius:14px; --shadow: 0 10px 40px rgba(2,6,23,0.7);
+      --max-w:1200px; --gap:16px; font-family: Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg-1),var(--bg-2));color:#e6eef6;-webkit-font-smoothing:antialiased}
+    .wrap{max-width:var(--max-w);margin:20px auto;padding:20px}
+
+    /* header */
+    header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+    .logo{width:68px;height:68px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;box-shadow:0 6px 22px rgba(124,58,237,0.16)}
+    h1{font-size:20px;margin:0}
+    p.lead{margin:4px 0 0;color:var(--muted);font-size:13px;max-width:860px}
+
+    /* main card */
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow)}
+
+    .meta-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+    .meta{color:var(--muted);font-size:13px}
+
+    /* layout responsive */
+    .grid{display:grid;grid-template-columns: 1fr 380px; gap:var(--gap); align-items:start}
+    @media (max-width:980px){.grid{grid-template-columns:1fr}}
+
+    /* left column */
+    .left{display:flex;flex-direction:column;gap:12px}
+    .panel{background:rgba(255,255,255,0.02);padding:12px;border-radius:12px}
+
+    /* clues */
+    .clues{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:999px;font-size:13px;color:var(--muted);backdrop-filter: blur(4px)}
+
+    /* input area */
+    .input-area{display:flex;flex-direction:column;gap:8px}
+    .input-row{display:flex;gap:8px}
+    input[type=text]{flex:1;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);background:#061426;color:inherit;font-size:15px}
+    button.btn{border:none;padding:12px 14px;border-radius:12px;color:#041018;font-weight:700;cursor:pointer}
+    .btn-primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));box-shadow:0 6px 18px rgba(6,182,212,0.08)}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+
+    /* suggestions */
+    .suggestions{position:relative}
+    .suggest-list{position:absolute;left:0;right:0;top:56px;background:#061426;border:1px solid rgba(255,255,255,0.04);border-radius:10px;max-height:260px;overflow:auto;z-index:60;padding:6px;box-shadow:0 12px 30px rgba(2,6,23,0.6)}
+    .suggest-item{padding:10px;border-radius:8px;cursor:pointer;font-size:14px}
+    .suggest-item:hover{background:rgba(255,255,255,0.03)}
+
+    /* guesses list */
+    .guesses{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+    .guess-card{display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);border-radius:12px;padding:10px;border:1px solid rgba(255,255,255,0.02)}
+    .guess-top{display:flex;justify-content:space-between;align-items:center}
+    .guess-name{font-weight:800}
+    .badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .badge{padding:6px 10px;border-radius:999px;font-size:13px}
+    .ok{background:var(--success);color:#042214}
+    .partial{background:var(--warn);color:#341d00}
+    .no{background:var(--muted);color:#071018}
+
+    /* right column */
+    .right{display:flex;flex-direction:column;gap:12px}
+    .panel h3{margin:0 0 8px 0}
+
+    /* HUD */
+    .hud{display:flex;gap:12px;align-items:center}
+    .stat{background:rgba(255,255,255,0.02);padding:8px 10px;border-radius:10px;font-size:13px;color:var(--muted)}
+
+    footer{margin-top:14px;color:var(--muted);font-size:13px;text-align:center}
+
+    /* small screens */
+    @media (max-width:480px){input[type=text]{padding:14px;font-size:16px} .logo{width:56px;height:56px}}
+
+    /* micro animation */
+    .fade-in{animation:fadeIn .45s ease both}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">ET</div>
+      <div>
+        <h1>EndoTumordle — Daily Endoscopy Puzzle</h1>
+        <p class="lead">A friendly, modern daily quiz that teaches endoscopic lesion recognition through concise clues, autocompletion and rich feedback. Play 1 puzzle/day — improve your pattern recognition with enjoyable micro-lessons.</p>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="meta-row">
+        <div class="meta">Daily puzzle • everyone gets the same target</div>
+        <div class="meta" id="dateLabel"></div>
+      </div>
+
+      <div class="grid">
+        <div class="left">
+          <div class="panel">
+            <div class="hud">
+              <div class="stat" id="attemptsStat">Attempts: 0/6</div>
+              <div class="stat" id="streakStat">Streak: 0</div>
+              <div class="stat" id="bestStat">Best: 0</div>
+            </div>
+
+            <div style="height:10px"></div>
+
+            <div class="clues" id="clueChips" aria-live="polite"></div>
+          </div>
+
+          <div class="panel input-area fade-in">
+            <div style="font-weight:700;margin-bottom:6px">Make your guess</div>
+            <div class="input-row">
+              <div style="flex:1;position:relative" class="suggestions">
+                <input id="guessInput" type="text" placeholder="Type lesion name (autocomplete will help)..." autocomplete="off" />
+                <div class="suggest-list" id="suggestList" style="display:none"></div>
+              </div>
+              <button id="guessBtn" class="btn btn-primary">Guess</button>
+              <button id="revealBtn" class="btn btn-ghost">Reveal</button>
+            </div>
+            <div class="small" style="margin-top:8px;color:var(--muted)">Tap a suggestion to auto-fill and submit. Typing triggers smart fuzzy suggestions.</div>
+          </div>
+
+          <div class="panel">
+            <div style="font-weight:700;margin-bottom:8px">Your attempts</div>
+            <div class="guesses" id="guesses" aria-live="polite"></div>
+          </div>
+        </div>
+
+        <aside class="right">
+          <div class="panel">
+            <h3>Today's answer</h3>
+            <div id="answerReveal" class="small">Hidden until revealed or solved.</div>
+          </div>
+
+          <div class="panel">
+            <h3>How to use feedback</h3>
+            <ul style="color:var(--muted)">
+              <li><strong>Green</strong> badges match the target exactly.</li>
+              <li><strong>Amber</strong> badges are partially matching or close.</li>
+              <li><strong>Gray</strong> badges don't match — use them to narrow differentials.</li>
+            </ul>
+          </div>
+
+          <div class="panel">
+            <h3>Progress</h3>
+            <div class="small" id="progressText">Play daily to build streaks and sharpen recognition.</div>
+          </div>
+        </aside>
+      </div>
+
+      <footer>Educational demo — not for clinical decision-making. Built for learning and pattern recognition practice.</footer>
+    </div>
+  </div>
+
+<script>
+/*
+  Final single-file app: professional UI, rich dataset, gamification (streaks), fuzzy autocomplete, many feedback criteria.
+  Open this HTML file in a browser to run locally.
+*/
+
+// Expanded, rich tumor/lesion dataset (realistic but simplified for demo)
+const ITEMS = [
+  {key:'gastric_adenoca', name:'Gastric adenocarcinoma', organ:'Stomach', malign:true, morph:'Ulcerative / Infiltrative', color:'Erythematous', location:'Antrum (distal)', growth:'Ulcerated', size:'large (>3cm)', symptom:'Bleeding', note:'Most common gastric malignancy; often presents with weight loss or GI bleeding.'},
+  {key:'gastric_gist', name:'Gastrointestinal stromal tumor (GIST)', organ:'Stomach', malign:true, morph:'Submucosal / Polypoid', color:'Pale', location:'Body / Fundus', growth:'Submucosal bulge', size:'variable', symptom:'Incidental/bleeding', note:'Mesenchymal tumor: EUS helpful; c-KIT mutation.'},
+  {key:'gastric_hyperplastic', name:'Gastric hyperplastic polyp', organ:'Stomach', malign:false, morph:'Polypoid', color:'Red/erythematous', location:'Antrum', growth:'Polypoid', size:'small', symptom:'Asymptomatic', note:'Often associated with chronic gastritis; low malignant potential.'},
+  {key:'gastric_lymphoma', name:'Gastric lymphoma (MALT/High-grade)', organ:'Stomach', malign:true, morph:'Diffuse / Nodular', color:'Pale/edematous', location:'Any', growth:'Diffuse thickening', size:'variable', symptom:'Early satiety/weight loss', note:'May mimic gastritis; H. pylori-associated MALT.'},
+  {key:'barrett_adenoca', name:'Barrett-related esophageal adenocarcinoma', organ:'Esophagus', malign:true, morph:'Nodular / Ulcerative', color:'Erythematous', location:'Distal esophagus', growth:'Nodular', size:'medium', symptom:'Reflux/dysphagia', note:'Arises in Barrett mucosa; surveillance is important.'},
+  {key:'esoph_scc', name:'Esophageal squamous cell carcinoma', organ:'Esophagus', malign:true, morph:'Infiltrative / Stenosing', color:'Pale/Whitish', location:'Mid esophagus', growth:'Infiltrative', size:'medium/large', symptom:'Progressive dysphagia', note:'Risk factors: smoking, alcohol.'},
+  {key:'colorectal_adenoma', name:'Colorectal adenomatous polyp', organ:'Colon', malign:false, morph:'Polypoid (tubular/villous)', color:'Pale/whitish', location:'Any colon segment', growth:'Polypoid', size:'small-medium', symptom:'Asymptomatic/bleeding', note:'Dysplasia potential; remove upon detection.'},
+  {key:'colorectal_adenoca', name:'Colorectal adenocarcinoma', organ:'Colon', malign:true, morph:'Infiltrative / Ulcerative / Annular', color:'Erythematous/irregular', location:'Rectum/Sigmoid common', growth:'Annular/infiltrative', size:'variable', symptom:'Bleeding/obstruction', note:'Common GI malignancy; screening reduces incidence.'},
+  {key:'colorectal_lipoma', name:'Colonic lipoma', organ:'Colon', malign:false, morph:'Submucosal / Cushion sign', color:'Pale/yellowish', location:'Any', growth:'Submucosal', size:'small-medium', symptom:'Usually asymptomatic', note:'Soft, compressible submucosal lesion.'},
+  {key:'duodenal_adenoma', name:'Duodenal adenomatous polyp', organ:'Duodenum', malign:false, morph:'Polypoid', color:'Pale', location:'Periampullary region', growth:'Polypoid', size:'small', symptom:'Asymptomatic', note:'Can be premalignant; ampullary lesions important.'},
+  {key:'small_bowel_net', name:'Small bowel neuroendocrine tumor (NET)', organ:'Small intestine', malign:true, morph:'Submucosal nodular/polypoid', color:'Yellowish', location:'Ileum/Jejunum', growth:'Nodular', size:'small', symptom:'Obstruction/carcinoid sx', note:'May secrete serotonin; may present with bowel obstruction.'},
+  {key:'pancreatic_cystic_neoplasm', name:'Pancreatic cystic neoplasm (EUS-visible)', organ:'Pancreas', malign:true, morph:'Cystic', color:'Clear/complex', location:'Head/Body/Tail', growth:'Cystic', size:'variable', symptom:'Often incidental', note:'Requires EUS-FNA for cyst fluid analysis.'},
+  {key:'gallbladder_polyp', name:'Gallbladder polyp (neoplastic)', organ:'Gallbladder', malign:true, morph:'Polypoid', color:'Pale', location:'Fundus', growth:'Polypoid', size:'small', symptom:'Usually asymptomatic', note:'Polyps >1cm raise concern for neoplasm.'},
+  {key:'esoph_varix', name:'Esophageal varix', organ:'Esophagus', malign:false, morph:'Vascular / Tortuous', color:'Red/blue', location:'Lower esophagus', growth:'Vascular', size:'variable', symptom:'Bleeding', note:'Portal hypertension sign; high bleeding risk.'},
+  {key:'gastic_peptic_ulcer', name:'Peptic ulcer with scarring', organ:'Stomach', malign:false, morph:'Ulcerative', color:'Erythematous/clean base', location:'Antrum/duodenal bulb', growth:'Ulcer', size:'variable', symptom:'Pain/bleeding', note:'Benign peptic disease vs malignant ulcer requires biopsy.'},
+  {key:'anal_squamous_carcinoma', name:'Anal squamous cell carcinoma', organ:'Anus', malign:true, morph:'Ulcerated/nodular', color:'Erythematous', location:'Anal canal', growth:'Nodular', size:'variable', symptom:'Bleeding/pain', note:'HPV-related in many cases.'},
+  {key:'gastric_polyp_fundic', name:'Fundic gland polyp', organ:'Stomach', malign:false, morph:'Polypoid', color:'Pale/whitish', location:'Fundus', growth:'Polypoid', size:'small', symptom:'Asymptomatic', note:'Often benign; associated with PPI use.'},
+  {key:'oesophageal_benign_stricture', name:'Benign esophageal stricture', organ:'Esophagus', malign:false, morph:'Stenosing/Scar', color:'Normal', location:'Lower esophagus', growth:'Fibrotic', size:'narrowing', symptom:'Dysphagia', note:'Causes include reflux, caustic injury.'},
+  {key:'gastric_mets', name:'Gastric metastasis (breast/lung/melanoma)', organ:'Stomach', malign:true, morph:'Submucosal/nodular', color:'Varied', location:'Any', growth:'Nodular', size:'variable', symptom:'Bleeding/obstruction', note:'Secondary; endoscopic appearance variable.'},
+  {key:'barrett_dysplasia', name:'Barrett high-grade dysplasia', organ:'Esophagus', malign:false, morph:'Flat/nodular dysplasia', color:'Erythematous', location:'Distal esophagus', growth:'Flat/nodular', size:'small', symptom:'Often asymptomatic', note:'Premalignant stage requiring intervention.'},
+  {key:'ileocecal_tb', name:'Ileocecal tuberculosis (endoscopic mimic)', organ:'Ileocaecal region', malign:false, morph:'Ulcerative/nodular', color:'Erythematous', location:'Ileocecal valve', growth:'Ulcerative', size:'variable', symptom:'Pain/fever', note:'Infectious/inflammatory mimic of malignancy.'},
+  {key:'colitis_related_pseudopolyps', name:'Pseudopolyps (IBD)', organ:'Colon', malign:false, morph:'Polypoid/Inflammatory', color:'Erythematous', location:'Any', growth:'Polypoid', size:'variable', symptom:'Diarrhea/bleeding', note:'Inflammation-related, not neoplastic.'},
+  {key:'ampullary_carcinoma', name:'Ampullary carcinoma', organ:'Duodenum/Ampulla', malign:true, morph:'Nodular/polypoid', color:'Erythematous', location:'Ampulla', growth:'Nodular', size:'small-medium', symptom:'Obstructive jaundice', note:'Presents with biliary obstruction symptoms.'},
+  {key:'submucosal_schwannoma', name:'Submucosal schwannoma', organ:'GI tract', malign:false, morph:'Submucosal', color:'Pale', location:'Any', growth:'Submucosal nodule', size:'small', symptom:'Often incidental', note:'Benign nerve-sheath tumor.'},
+  {key:'h_pylori_gastritis', name:'H. pylori associated gastritis', organ:'Stomach', malign:false, morph:'Erythematous/mucosal', color:'Erythematous', location:'Antrum/body', growth:'Diffuse', size:'n/a', symptom:'Dyspepsia', note:'Treatable infectious etiology.'},
+  {key:'jejunal_adenoca', name:'Small bowel adenocarcinoma (jejunum)', organ:'Small intestine', malign:true, morph:'Ulcerative/nodular', color:'Erythematous', location:'Jejunum', growth:'Infiltrative', size:'variable', symptom:'Obstruction/bleeding', note:'Rare; often diagnosed late.'},
+  {key:'mucosa_associated_erosion', name:'Mucosal erosion (non-specific)', organ:'GI tract', malign:false, morph:'Erosive', color:'Red', location:'Any', growth:'Erosion', size:'small', symptom:'Occasional bleeding', note:'Non-specific, often benign.'}
+];
+
+// --- Utilities ---
+function normalize(s){return (s||'').toString().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'').trim();}
+function fuzzyMatch(term, text){
+  // simple fuzzy: include if term tokens included in text OR Levenshtein small (cheap approximation)
+  const t = normalize(term); const txt = normalize(text);
+  if(!t) return false;
+  if(txt.includes(t)) return true;
+  const toks = t.split(' ');
+  return toks.every(tok => txt.includes(tok));
+}
+
+// --- Daily target selection (deterministic) ---
+function dailyIndex(date=new Date()){const start=new Date(2024,0,1);const days=Math.floor((Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())-Date.UTC(start.getFullYear(),start.getMonth(),start.getDate()))/(24*3600*1000));return Math.abs(days)%ITEMS.length;}
+
+const today = new Date();
+const TARGET = ITEMS[dailyIndex(today)];
+
+// --- State & persistence ---
+let attempts = 0; const MAX = 6; let solved=false;
+const statsKey = 'endotumordle_stats_v1';
+let stats = JSON.parse(localStorage.getItem(statsKey) || '{}');
+if(!stats.best) stats.best = 0; if(!stats.streak) stats.streak = 0; if(!stats.playedDates) stats.playedDates = [];
+
+// --- DOM refs ---
+const dateLabel = document.getElementById('dateLabel');
+const clueChips = document.getElementById('clueChips');
+const guessInput = document.getElementById('guessInput');
+const suggestList = document.getElementById('suggestList');
+const guessBtn = document.getElementById('guessBtn');
+const revealBtn = document.getElementById('revealBtn');
+const guessesEl = document.getElementById('guesses');
+const answerReveal = document.getElementById('answerReveal');
+const attemptsStat = document.getElementById('attemptsStat');
+const streakStat = document.getElementById('streakStat');
+const bestStat = document.getElementById('bestStat');
+const progressText = document.getElementById('progressText');
+
+// init UI
+function initUI(){
+  dateLabel.textContent = today.toLocaleDateString('en-GB', {year:'numeric', month:'short', day:'numeric'});
+  clueChips.innerHTML = [`<div class="chip">Organ hint: ${TARGET.organ}</div>`, `<div class="chip">Morphology hint: ${TARGET.morph.split('/')[0].trim()}</div>`, `<div class="chip">Location hint: ${TARGET.location.split('/')[0].trim()}</div>`].join('');
+  attemptsStat.textContent = `Attempts: ${attempts}/${MAX}`;
+  streakStat.textContent = `Streak: ${stats.streak || 0}`;
+  bestStat.textContent = `Best: ${stats.best || 0}`;
+}
+
+// evaluate guess across many criteria
+function evaluateGuess(item){
+  const res = {};
+  res.nameMatch = (item.key === TARGET.key);
+  res.organ = normalize(item.organ) === normalize(TARGET.organ) ? 'ok' : (normalize(item.organ) && normalize(TARGET.organ).includes(normalize(item.organ)) ? 'partial' : 'no');
+  res.malign = (item.malign === TARGET.malign) ? 'ok' : 'no';
+  res.morph = normalize(item.morph).split(/[\s\/\\,]+/)[0] === normalize(TARGET.morph).split(/[\s\/\\,]+/)[0] ? 'ok' : (fuzzyMatch(normalize(item.morph), normalize(TARGET.morph)) ? 'partial' : 'no');
+  res.color = normalize(item.color) === normalize(TARGET.color) ? 'ok' : (fuzzyMatch(normalize(item.color), normalize(TARGET.color)) ? 'partial' : 'no');
+  res.location = normalize(item.location).split(/[\s\/\\,]+/)[0] === normalize(TARGET.location).split(/[\s\/\\,]+/)[0] ? 'ok' : (fuzzyMatch(normalize(item.location), normalize(TARGET.location)) ? 'partial' : 'no');
+  res.growth = normalize(item.growth).split(/[\s\/\\,]+/)[0] === normalize(TARGET.growth).split(/[\s\/\\,]+/)[0] ? 'ok' : (fuzzyMatch(normalize(item.growth), normalize(TARGET.growth)) ? 'partial' : 'no');
+  res.size = normalize(item.size) === normalize(TARGET.size) ? 'ok' : ( (normalize(item.size).includes('small') && normalize(TARGET.size).includes('medium')) ? 'partial' : 'no');
+  res.symptom = normalize(item.symptom).split(/[\s\/\\,]+/)[0] === normalize(TARGET.symptom).split(/[\s\/\\,]+/)[0] ? 'ok' : (fuzzyMatch(normalize(item.symptom), normalize(TARGET.symptom)) ? 'partial' : 'no');
+  return res;
+}
+
+function badgeText(state){ if(state==='ok') return 'ok'; if(state==='partial') return 'partial'; return 'no'; }
+
+function renderGuessRow(item, evalRes){
+  const row = document.createElement('div'); row.className='guess-card fade-in';
+  const top = document.createElement('div'); top.className='guess-top';
+  const name = document.createElement('div'); name.className='guess-name'; name.textContent = item.name;
+  top.appendChild(name);
+  row.appendChild(top);
+
+  const badges = document.createElement('div'); badges.className='badges';
+  const criteria = [ ['Organ', evalRes.organ], ['Malignancy', evalRes.malign], ['Morph', evalRes.morph], ['Color', evalRes.color], ['Location', evalRes.location], ['Growth', evalRes.growth], ['Size', evalRes.size], ['Symptom', evalRes.symptom] ];
+  criteria.forEach(([label, state])=>{
+    const b = document.createElement('div'); b.className='badge ' + (state==='ok'? 'ok' : (state==='partial'? 'partial' : 'no')); b.textContent = label; badges.appendChild(b);
+  });
+  row.appendChild(badges);
+  guessesEl.prepend(row);
+}
+
+// suggestion engine (fuzzy)
+function showSuggestions(q){
+  const term = normalize(q);
+  if(!term){ suggestList.style.display='none'; suggestList.innerHTML=''; return; }
+  const exact = ITEMS.filter(it=>normalize(it.name) === term);
+  let matches = exact.length? exact : ITEMS.filter(it => fuzzyMatch(term, it.name) || fuzzyMatch(term, it.organ));
+  // boost items containing tokens
+  matches = matches.slice(0,12);
+  suggestList.innerHTML = '';
+  matches.forEach(it=>{
+    const div = document.createElement('div'); div.className='suggest-item'; div.textContent = it.name + ' — ' + it.organ;
+    div.onclick = ()=>{ guessInput.value = it.name; submitGuessByName(it.name); suggestList.style.display='none'; };
+    suggestList.appendChild(div);
+  });
+  suggestList.style.display = matches.length ? 'block' : 'none';
+}
+
+function findByName(name){
+  const term = normalize(name);
+  return ITEMS.find(it => normalize(it.name) === term) || ITEMS.find(it => normalize(it.name).includes(term)) || ITEMS.find(it => normalize(it.name).split(' ')[0] === term);
+}
+
+function submitGuessByName(name){
+  if(solved) return;
+  const item = findByName(name);
+  if(!item){ alert('No matching lesion found. Try selecting from suggestions.'); return; }
+  attempts++;
+  attemptsStat.textContent = `Attempts: ${attempts}/${MAX}`;
+  const ev = evaluateGuess(item);
+  renderGuessRow(item, ev);
+  if(ev.nameMatch){ solved=true; onSolved(true); }
+  else if(attempts>=MAX){ solved=true; onSolved(false); }
+}
+
+function onSolved(correct){
+  // persist stats
+  const todayKey = today.toISOString().slice(0,10);
+  if(!stats.playedDates.includes(todayKey)) stats.playedDates.push(todayKey);
+  if(correct){ stats.streak = (stats.lastWin === yesterdayString()) ? (stats.streak||0) + 1 : 1; stats.lastWin = today.toISOString().slice(0,10); stats.best = Math.max(stats.best||0, stats.streak||0); }
+  else { stats.streak = 0; }
+  localStorage.setItem(statsKey, JSON.stringify(stats));
+  // reveal answer and update UI
+  revealAnswer();
+  streakStat.textContent = `Streak: ${stats.streak||0}`;
+  bestStat.textContent = `Best: ${stats.best||0}`;
+  progressText.textContent = correct ? 'Nice! You solved today\'s puzzle.' : 'Keep practicing — try again tomorrow.';
+  setTimeout(()=>{ alert(correct? 'Correct — well done!':'Out of attempts — answer revealed.'); },50);
+}
+
+function yesterdayString(){ const d = new Date(today); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
+
+function revealAnswer(){
+  answerReveal.innerHTML = `<strong>${TARGET.name}</strong><div style="margin-top:8px;color:var(--muted)">Organ: ${TARGET.organ} • Malignancy: ${TARGET.malign? 'Malignant':'Benign'} • Morphology: ${TARGET.morph} • Color: ${TARGET.color} • Location: ${TARGET.location} • Growth: ${TARGET.growth} • Size: ${TARGET.size} • Symptom: ${TARGET.symptom}</div><div style="margin-top:8px;color:var(--muted)">${TARGET.note}</div>`;
+}
+
+// handlers
+guessInput.addEventListener('input',(e)=>{ showSuggestions(e.target.value); });
+guessInput.addEventListener('keydown',(e)=>{ if(e.key === 'Enter'){ submitGuessByName(guessInput.value); suggestList.style.display='none'; }});
+guessBtn.addEventListener('click', ()=>{ submitGuessByName(guessInput.value); });
+revealBtn.addEventListener('click', ()=>{ revealAnswer(); solved=true; });
+
+// init
+initUI();
+
+</script>
+</body>
+</html>
