@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Endo-Sim: Clinical Training Platform</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap');
+
+        body { 
+            margin: 0; overflow: hidden; background: #080a0c; 
+            font-family: 'Manrope', sans-serif; user-select: none; touch-action: none; 
+        }
+        canvas { display: block; width: 100vw; height: 100vh; }
+
+        /* --- VAKA SEÇİM EKRANI (MENU) --- */
+        #case-menu {
+            position: absolute; top:0; left:0; width:100%; height:100%; z-index: 200;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            display: flex; flex-direction: column; align-items: center; padding-top: 40px;
+        }
+        .app-title { font-size: 24px; color: #38bdf8; letter-spacing: 2px; margin-bottom: 30px; font-weight: 800; }
+        .case-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; width: 90%; max-width: 1000px; }
+        
+        .case-card {
+            background: rgba(255,255,255,0.05); border: 1px solid #334155; border-radius: 12px;
+            padding: 20px; cursor: pointer; transition: 0.2s; position: relative;
+        }
+        .case-card:hover { background: rgba(56, 189, 248, 0.1); border-color: #38bdf8; transform: translateY(-3px); }
+        .case-tag { font-size: 10px; font-weight: bold; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-bottom: 10px; }
+        .tag-easy { background: #059669; color: #fff; }
+        .tag-hard { background: #dc2626; color: #fff; }
+        .case-name { font-size: 18px; font-weight: 600; color: #fff; margin-bottom: 5px; }
+        .case-desc { font-size: 13px; color: #94a3b8; line-height: 1.4; }
+
+        /* --- OYUN ARAYÜZÜ (HUD) --- */
+        #sim-ui { display: none; width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 10; pointer-events: none; }
+        
+        .monitor-info {
+            position: absolute; top: 20px; left: 20px;
+            color: #fff; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        }
+        .info-row { margin-bottom: 4px; display: flex; gap: 10px; }
+        .info-label { color: #94a3b8; width: 80px; }
+        
+        .tool-indicator {
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(0,0,0,0.6); padding: 8px 15px; border-radius: 20px;
+            color: #38bdf8; font-weight: 600; border: 1px solid #334155; font-size: 12px;
+        }
+
+        /* --- KONTROLLER (JOYSTICKS) --- */
+        .controls-area {
+            position: absolute; bottom: 30px; width: 100%; height: 160px;
+            display: flex; justify-content: space-between; padding: 0 50px; box-sizing: border-box;
+            pointer-events: auto; z-index: 50;
+        }
+        .stick-base {
+            width: 130px; height: 130px; background: rgba(255,255,255,0.05);
+            border: 2px dashed rgba(255,255,255,0.1); border-radius: 50%;
+            position: relative; display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .stick-handle {
+            width: 60px; height: 60px; border-radius: 50%; position: absolute;
+            background: radial-gradient(circle at 30% 30%, #475569, #0f172a);
+            border: 1px solid #64748b; box-shadow: 0 4px 10px rgba(0,0,0,0.5); pointer-events: none;
+        }
+        .stick-label { position: absolute; bottom: -25px; width: 150px; text-align: center; font-size: 10px; color: #64748b; font-weight: bold; }
+
+        /* --- ARAÇ SEÇİMİ --- */
+        .toolbar {
+            position: absolute; bottom: 200px; right: 30px; display: flex; flex-direction: column; gap: 10px;
+            pointer-events: auto; z-index: 50;
+        }
+        .tool-btn {
+            width: 60px; height: 60px; background: rgba(15, 23, 42, 0.9);
+            border: 1px solid #334155; border-radius: 12px; color: #cbd5e1;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 9px; font-weight: 600; transition: 0.2s;
+        }
+        .tool-btn.active { border-color: #38bdf8; color: #38bdf8; background: rgba(56, 189, 248, 0.1); }
+        .tool-btn:active { transform: scale(0.95); }
+        .t-icon { font-size: 22px; margin-bottom: 2px; }
+
+        /* AKSİYON BUTONU (ORTA) */
+        #action-btn {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            width: 90px; height: 90px; border-radius: 50%; background: rgba(56, 189, 248, 0.1);
+            border: 2px solid #38bdf8; color: #38bdf8; font-weight: bold;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            pointer-events: auto; z-index: 50; backdrop-filter: blur(2px); transition: 0.1s;
+        }
+        #action-btn:active { background: #38bdf8; color: #000; }
+        #action-btn.disabled { opacity: 0.3; pointer-events: none; border-color: #555; color: #555; }
+
+        /* GERİ BİLDİRİM POPUP */
+        #notification {
+            position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); border: 1px solid #334155; padding: 10px 20px;
+            border-radius: 20px; color: #fff; font-size: 14px; opacity: 0; transition: opacity 0.3s;
+            pointer-events: none; z-index: 100;
+        }
+
+        /* --- PATCH: UI tıklama güvenliği ve mobil ergonomi --- */
+        .ui, .toolbar, #action-btn, .controls-area, .tool-btn { pointer-events: auto; }
+        button, .tool-btn, #action-btn { touch-action: manipulation; }
+        .overlay-blocker { pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="case-menu">
+        <div class="app-title">ENDO-SIM TRAINING</div>
+        <div class="case-grid">
+            <div class="case-card" onclick="Game.loadCase(0)">
+                <div class="case-tag tag-easy">EĞİTİM</div>
+                <div class="case-name">Navigasyon Temelleri</div>
+                <div class="case-desc">Kolon lümenini takip etme, angülasyon ve çekuma ulaşma eğitimi.</div>
+            </div>
+            <div class="case-card" onclick="Game.loadCase(1)">
+                <div class="case-tag tag-hard">VAKA 101</div>
+                <div class="case-name">Polipektomi (Snare)</div>
+                <div class="case-desc">55Y Erkek. Sigmoid kolonda şüpheli polip. Rezeksiyon gerekli.</div>
+            </div>
+            <div class="case-card" onclick="Game.loadCase(2)">
+                <div class="case-tag tag-hard">VAKA 102</div>
+                <div class="case-name">Biyopsi (Ülser)</div>
+                <div class="case-desc">Transvers kolonda ülseratif alan. Tanı amaçlı örnekleme (Forceps).</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="sim-ui">
+        <div class="monitor-info">
+            <div class="info-row"><div class="info-label">HASTA ID:</div> <span>9821-TK</span></div>
+            <div class="info-row"><div class="info-label">DERİNLİK:</div> <span id="depth-disp">0 cm</span></div>
+            <div class="info-row"><div class="info-label">DURUM:</div> <span id="status-disp" style="color:#4ade80">STABİL</span></div>
+        </div>
+        <div class="tool-indicator" id="current-tool-txt">MOD: GÖZLEM</div>
+        <div id="notification">İŞLEM BAŞARILI</div>
+    </div>
+
+    <div class="controls-area" id="controls-layer" style="display:none">
+        <div class="stick-base" id="joy-left">
+            <div class="stick-handle"></div>
+            <div class="stick-label">ANGÜLASYON (BAKIŞ)</div>
+        </div>
+        
+        <div class="stick-base" id="joy-right">
+            <div class="stick-handle"></div>
+            <div class="stick-label">İLERLEME / TORK</div>
+        </div>
+    </div>
+
+    <!-- Inline olaylar kaldırıldı: güvenli pointer bağlama JS tarafında -->
+    <div id="action-btn" class="disabled" style="display:none">İŞLEM</div>
+
+    <div class="toolbar" id="toolbar-layer" style="display:none">
+        <div class="tool-btn active" id="t-nav" onclick="Game.setTool('nav')">
+            <span class="t-icon">👁️</span>NAV
+        </div>
+        <div class="tool-btn" id="t-photo" onclick="Game.takePhoto()">
+            <span class="t-icon">📷</span>FOTO
+        </div>
+        <div class="tool-btn" id="t-snare" onclick="Game.setTool('snare')">
+            <span class="t-icon">⭕</span>SNARE
+        </div>
+        <div class="tool-btn" id="t-biopsy" onclick="Game.setTool('biopsy')">
+            <span class="t-icon">🥢</span>FORCEPS
+        </div>
+    </div>
+
+<script>
+    // --- OYUN KONFIGURASYONU ---
+    const CONF = {
+        TUBE_LEN: 600,
+        TUBE_RAD: 7,
+        MOVE_SPEED: 0.05, // Yavaşlatılmış gerçekçi hız
+        ROT_SPEED: 0.03
+    };
+
+    let scene, camera, renderer, tubeCurve;
+    let snareGroup, forcepsGroup;
+    let polyps = [];
+    
+    // Oyun Durumu
+    const state = {
+        active: false,
+        pos: 0.005,
+        tool: 'nav',
+        actionPhase: 0, // 0:Yok, 1:Açık, 2:Kapalı/Kesen
+        targetFound: null,
+        velocity: 0 // <<< PATCH: başlangıç hızı
+    };
+
+    // Joystick Girdileri
+    const input = {
+        look: { x:0, y:0 }, // Sol Stick (Angülasyon)
+        move: { x:0, y:0 } // Sağ Stick (Hız, Tork)
+    };
+
+    // --- GAME ENGINE ---
+    const Game = {
+        loadCase: (id) => {
+            document.getElementById('case-menu').style.display = 'none';
+            document.getElementById('sim-ui').style.display = 'block';
+            document.getElementById('controls-layer').style.display = 'flex';
+            document.getElementById('toolbar-layer').style.display = 'flex';
+            document.getElementById('action-btn').style.display = 'flex';
+            
+            init3D(id); // Vaka ID'sine göre yükle
+            state.active = true;
+
+            // Güvenli aksiyon butonu bağlama (pointer/click)
+            bindActionButton();
+        },
+
+        setTool: (name) => {
+            state.tool = name;
+            state.actionPhase = 0; // Sıfırla
+            
+            // UI Güncelle
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            const pick = document.getElementById('t-'+name);
+            if (pick) pick.classList.add('active');
+            document.getElementById('current-tool-txt').innerText = "MOD: " + name.toUpperCase();
+
+            // Alet Görselliği
+            updateToolVisuals();
+
+            // Aksiyon Butonu Durumu
+            const btn = document.getElementById('action-btn');
+            if(name === 'nav') {
+                btn.classList.add('disabled');
+                btn.innerText = "---";
+            } else {
+                btn.classList.remove('disabled');
+                btn.innerText = (name === 'photo') ? 'ÇEK' : 'AÇ';
+            }
+        },
+
+        takePhoto: () => {
+            // Flash Effect
+            const flash = document.createElement('div');
+            flash.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;background:#fff;z-index:200;pointer-events:none;opacity:0.8;transition:opacity 0.2s;";
+            document.body.appendChild(flash);
+            setTimeout(() => flash.style.opacity = 0, 50);
+            setTimeout(() => flash.remove(), 250);
+            notify("FOTOĞRAF KAYDEDİLDİ");
+        },
+
+        actionStart: () => {
+            if(state.tool === 'nav') return;
+            // Animasyon başlangıcı
+            if(state.tool === 'snare') {
+                if(state.actionPhase === 0) {
+                    state.actionPhase = 1; // Açılıyor
+                    notify("SNARE AÇILIYOR...");
+                    new TWEEN.Tween(snareGroup.children[1].scale).to({x:1, y:1}, 500).start();
+                    document.getElementById('action-btn').innerText = "KES";
+                } else if(state.actionPhase === 1) {
+                    state.actionPhase = 2; // Kesiyor
+                    new TWEEN.Tween(snareGroup.children[1].scale).to({x:0.1, y:0.1}, 200).start();
+                    checkInteraction(); // Kesim anı
+                    setTimeout(() => {
+                        state.actionPhase = 0;
+                        document.getElementById('action-btn').innerText = "AÇ";
+                    }, 500);
+                }
+            }
+            else if(state.tool === 'biopsy') {
+                // Forseps kapatma animasyonu
+                new TWEEN.Tween(forcepsGroup.children[1].rotation).to({x: -Math.PI/2}, 200).start(); // Üst çene
+                new TWEEN.Tween(forcepsGroup.children[2].rotation).to({x: Math.PI/2}, 200).start();  // Alt çene
+                checkInteraction();
+            }
+        },
+
+        actionEnd: () => {
+            if(state.tool === 'biopsy') {
+                // Forseps açma (Bırakınca)
+                new TWEEN.Tween(forcepsGroup.children[1].rotation).to({x: -Math.PI/2 + 0.5}, 200).start();
+                new TWEEN.Tween(forcepsGroup.children[2].rotation).to({x: Math.PI/2 - 0.5}, 200).start();
+            }
+        }
+    };
+    window.Game = Game;
+
+    function notify(msg) {
+        const el = document.getElementById('notification');
+        el.innerText = msg;
+        el.style.opacity = 1;
+        setTimeout(() => el.style.opacity = 0, 2000);
+    }
+
+    // --- THREE.JS KURULUMU ---
+    function init3D(levelId) {
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // <<< HiDPI
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        document.body.appendChild(renderer.domElement);
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050000);
+        scene.fog = new THREE.FogExp2(0x050000, 0.03);
+
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        scene.add(camera);
+
+        // Işıklar (Kameraya bağlı)
+        const light = new THREE.SpotLight(0xffeebb, 2, 60, 0.6, 0.5);
+        light.position.set(0,0,0);
+        camera.add(light);
+        
+        const ambient = new THREE.AmbientLight(0x401010, 0.4);
+        scene.add(ambient);
+
+        // Ortam Oluştur
+        createTunnel();
+        createTools();
+        
+        // Vaka Özelleştirme
+        if(levelId === 1) createPolyp(-200); // Vaka 1: Yakın polip
+        else if(levelId === 2) createUlcer(-300); // Vaka 2: Uzak ülser
+
+        // Kontrolcüleri Bağla
+        setupJoystick('joy-left', input.look);
+        setupJoystick('joy-right', input.move);
+
+        animate();
+    }
+
+    // --- İÇERİK OLUŞTURMA ---
+    function createTunnel() {
+        const points = [];
+        for(let i=0; i<100; i++) {
+            const x = Math.sin(i*0.2)*25 + Math.cos(i*0.5)*10;
+            const y = Math.cos(i*0.3)*20;
+            const z = i * -8;
+            points.push(new THREE.Vector3(x,y,z));
+        }
+        tubeCurve = new THREE.CatmullRomCurve3(points);
+        
+        const geo = new THREE.TubeGeometry(tubeCurve, 300, CONF.TUBE_RAD, 24, false);
+        // Haustra (Boğum) Efekti
+        const pos = geo.attributes.position;
+        for(let i=0; i<pos.count; i++) {
+            const z = pos.getZ(i);
+            const r = 1 + Math.sin(z*0.3)*0.15;
+            pos.setX(i, pos.getX(i)*r);
+            pos.setY(i, pos.getY(i)*r);
+        }
+        geo.computeVertexNormals();
+
+        // Mukoza Dokusu (Canvas)
+        const cvs = document.createElement('canvas'); cvs.width=512; cvs.height=512;
+        const ctx = cvs.getContext('2d');
+        ctx.fillStyle='#b05050'; ctx.fillRect(0,0,512,512);
+        // Damarlar
+        ctx.strokeStyle='rgba(80,0,0,0.2)'; ctx.lineWidth=2;
+        for(let i=0; i<100; i++) {
+            ctx.beginPath(); ctx.moveTo(Math.random()*512, Math.random()*512);
+            ctx.bezierCurveTo(Math.random()*512, Math.random()*512, Math.random()*512, Math.random()*512, Math.random()*512, Math.random()*512);
+            ctx.stroke();
+        }
+        const tex = new THREE.CanvasTexture(cvs);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(20,4);
+
+        const mat = new THREE.MeshPhysicalMaterial({
+            map: tex, color: 0xffcccc, roughness: 0.4, clearcoat: 1.0, side: THREE.BackSide
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        scene.add(mesh);
+    }
+
+    function createPolyp(zPos) {
+        const t = Math.abs(zPos) / (100*8); // Yaklaşık t değeri
+        const pt = tubeCurve.getPointAt(t);
+        const tan = tubeCurve.getTangentAt(t);
+        const norm = new THREE.Vector3(1,0,0).applyAxisAngle(tan, Math.random()*Math.PI*2);
+        const pos = pt.clone().add(norm.multiplyScalar(CONF.TUBE_RAD * 0.8));
+
+        const geo = new THREE.SphereGeometry(2.5, 32, 32);
+        const mat = new THREE.MeshPhongMaterial({ color: 0xff4444, shininess: 40 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(pos);
+        mesh.userData = { type: 'polyp' };
+        scene.add(mesh);
+        polyps.push(mesh);
+    }
+
+    function createUlcer(zPos) {
+        // Ülser (Beyaz, çökük)
+        const t = Math.abs(zPos) / (100*8);
+        const pt = tubeCurve.getPointAt(t);
+        const tan = tubeCurve.getTangentAt(t);
+        const norm = new THREE.Vector3(1,0,0).applyAxisAngle(tan, Math.random()*Math.PI*2);
+        const pos = pt.clone().add(norm.multiplyScalar(CONF.TUBE_RAD * 0.9));
+
+        const geo = new THREE.CircleGeometry(3, 32);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(pos);
+        mesh.lookAt(pt); // İçe bak
+        mesh.userData = { type: 'ulcer' };
+        scene.add(mesh);
+        polyps.push(mesh);
+    }
+
+    function createTools() {
+        // Hepsi kameraya eklenecek
+        const toolOffset = new THREE.Vector3(2, -2, -8);
+
+        // 1. SNARE
+        snareGroup = new THREE.Group();
+        const line = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,5), new THREE.MeshBasicMaterial({color:0x888888}));
+        line.rotation.x = Math.PI/2; line.position.z = -2.5;
+        const loop = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.05, 16, 32), new THREE.MeshBasicMaterial({color:0x00aaff}));
+        loop.position.z = -5; loop.scale.set(0,0,0); // Başta kapalı
+        snareGroup.add(line); snareGroup.add(loop);
+        snareGroup.position.copy(toolOffset);
+        snareGroup.visible = false;
+        camera.add(snareGroup);
+
+        // 2. BIOPSY
+        forcepsGroup = new THREE.Group();
+        const sheath = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,5), new THREE.MeshBasicMaterial({color:0xaaaaaa}));
+        sheath.rotation.x = Math.PI/2; sheath.position.z = -2.5;
+        // Çeneler
+        const cupGeo = new THREE.SphereGeometry(0.3, 16, 16, 0, Math.PI);
+        const cupMat = new THREE.MeshBasicMaterial({color:0x888888});
+        const cup1 = new THREE.Mesh(cupGeo, cupMat); cup1.position.set(0,0.1,-5); cup1.rotation.set(-Math.PI/2+0.5,0,0);
+        const cup2 = new THREE.Mesh(cupGeo, cupMat); cup2.position.set(0,-0.1,-5); cup2.rotation.set(Math.PI/2-0.5,0,0);
+        forcepsGroup.add(sheath); forcepsGroup.add(cup1); forcepsGroup.add(cup2);
+        forcepsGroup.position.copy(toolOffset);
+        forcepsGroup.visible = false;
+        camera.add(forcepsGroup);
+    }
+
+    function updateToolVisuals() {
+        if(!snareGroup) return;
+        snareGroup.visible = (state.tool === 'snare');
+        forcepsGroup.visible = (state.tool === 'biopsy');
+    }
+
+    // --- GAME LOOP ---
+    function animate(time) {
+        requestAnimationFrame(animate);
+        TWEEN.update(time);
+
+        // 1. HAREKET (Sağ Stick Y)
+        const targetSpeed = -input.move.y * CONF.MOVE_SPEED; 
+        state.velocity += (targetSpeed - state.velocity) * 0.1; // Smooth
+        state.pos += state.velocity * 0.01; // Çok yavaş ilerle
+        if(state.pos < 0) state.pos = 0; if(state.pos>0.99) state.pos=0.99;
+
+        // Kamera Pozisyonu
+        const pt = tubeCurve.getPointAt(state.pos);
+        const lookAtPt = tubeCurve.getPointAt(Math.min(state.pos + 0.01, 0.99));
+        camera.position.copy(pt);
+        camera.lookAt(lookAtPt);
+
+        // 2. TORK (Sağ Stick X) - Ufuk çizgisini döndür
+        camera.rotateZ(-input.move.x * 0.05);
+
+        // 3. ANGÜLASYON (Sol Stick X/Y) - Ucu kıvır
+        camera.rotateX(-input.look.y * 0.03); // Yukarı/Aşağı
+        camera.rotateY(-input.look.x * 0.03); // Sağa/Sola
+
+        // UI Depth
+        document.getElementById('depth-disp').innerText = Math.floor(state.pos * 600) + " cm";
+
+        renderer.render(scene, camera);
+    }
+
+    // --- ETKİLEŞİM ---
+    function checkInteraction() {
+        const toolPos = new THREE.Vector3(0,0,-8).applyQuaternion(camera.quaternion).add(camera.position);
+        
+        let hit = false;
+        polyps.forEach(p => {
+            if(p.visible && p.position.distanceTo(toolPos) < 5) {
+                // Etkileşim
+                if(state.tool === 'snare' && p.userData.type === 'polyp') {
+                    p.visible = false;
+                    notify("POLİP REZEKE EDİLDİ");
+                    hit = true;
+                }
+                else if(state.tool === 'biopsy' && p.userData.type === 'ulcer') {
+                    notify("BİYOPSİ ALINDI");
+                    hit = true;
+                }
+                else if(state.tool === 'biopsy' && p.userData.type === 'polyp') {
+                    notify("UYARI: POLİPTE BİYOPSİ YETERSİZDİR");
+                }
+            }
+        });
+        if(!hit) notify("BOŞA İŞLEM");
+    }
+
+    // --- JOYSTICK LOGIC (güçlendirilmiş) ---
+    function setupJoystick(elmId, outObj) {
+        const base = document.getElementById(elmId);
+        const handle = base.querySelector('.stick-handle');
+        let startX, startY, active=false; const max=40;
+
+        const handleStart = (cx, cy) => { active=true; startX=cx; startY=cy; };
+        const handleMove = (cx, cy) => {
+            if(!active) return;
+            const dx = cx - startX;
+            const dy = cy - startY;
+            const dist = Math.min(Math.sqrt(dx*dx+dy*dy), max);
+            const angle = Math.atan2(dy, dx);
+            const fx = Math.cos(angle)*dist;
+            const fy = Math.sin(angle)*dist;
+            handle.style.transform = `translate(${fx}px, ${fy}px)`;
+            
+            // Output (-1 to 1)
+            outObj.x = fx/max;
+            outObj.y = fy/max;
+        };
+        const handleEnd = () => { active=false; handle.style.transform=`translate(0,0)`; outObj.x=0; outObj.y=0; };
+
+        // Mouse
+        base.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+        window.addEventListener('mouseup', handleEnd);
+
+        // Touch (pasif=false + preventDefault)
+        base.addEventListener('touchstart', e => { e.preventDefault(); handleStart(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        window.addEventListener('touchmove',  e => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        window.addEventListener('touchend',   handleEnd, { passive: false });
+
+        // Pointer güvenlik ağı
+        base.addEventListener('pointerdown', e => handleStart(e.clientX, e.clientY));
+        window.addEventListener('pointermove', e => handleMove(e.clientX, e.clientY));
+        window.addEventListener('pointerup',   handleEnd);
+    }
+
+    // Aksiyon butonuna güvenli bağlama (pointer/click)
+    function bindActionButton() {
+        const btn = document.getElementById('action-btn');
+        const stop = (ev) => { if (ev && ev.cancelable) ev.preventDefault(); if (ev) ev.stopPropagation(); };
+        const start = (ev) => { stop(ev); Game.actionStart(); };
+        const end   = (ev)   => { stop(ev); Game.actionEnd();   };
+
+        // Eski dinleyicilerden temizle (aynı sayfada tekrar yükleme durumları için)
+        btn.replaceWith(btn.cloneNode(true));
+        const freshBtn = document.getElementById('action-btn');
+
+        freshBtn.addEventListener('pointerdown', start, { passive: false });
+        freshBtn.addEventListener('pointerup',   end,   { passive: false });
+        freshBtn.addEventListener('click',       stop,  { passive: false });
+    }
+
+    // Resize: HiDPI’ı koru
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        if (renderer) {
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // <<< HiDPI on resize
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    });
+</script>
+</body>
+</html>
