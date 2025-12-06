@@ -67,6 +67,15 @@
         .hud-val { font-size: 20px; font-weight: bold; color: #fff; }
         .hud-lbl { font-size: 10px; color: #00ffcc; letter-spacing: 1px; }
 
+        /* --- HIZLI YARDIM --- */
+        #help-panel {
+            position: absolute; top: 120px; right: 20px; z-index: 60; pointer-events: none;
+            background: rgba(0, 10, 20, 0.8); border: 1px solid #335544;
+            padding: 10px 12px; border-radius: 10px; color: #cde; width: 230px;
+            font-size: 11px; line-height: 1.5;
+        }
+        #help-panel h4 { margin: 0 0 6px 0; color: #00ffcc; letter-spacing: 1px; font-size: 12px; }
+
         /* --- ARAÇ ÇUBUĞU --- */
         #toolbar {
             position: absolute; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 15px;
@@ -169,6 +178,15 @@
             <div class="hud-val" id="status-txt" style="color:#0f0">STABİL</div>
         </div>
 
+        <div id="help-panel">
+            <h4>KONTROLLER</h4>
+            <div>W / S : İleri - Geri</div>
+            <div>A / D : Tork</div>
+            <div>Yön Tuşları : Bakış</div>
+            <div>Fare: Basılı tut & hareket et</div>
+            <div>Dokunmatik: Sanal joystickler</div>
+        </div>
+
         <div id="controls-wrapper">
             <div class="stick-zone" id="joy-left">
                 <div class="stick-knob"></div>
@@ -241,17 +259,49 @@
         };
 
         const input = { left: {x:0,y:0}, right: {x:0,y:0} };
+        const sources = {
+            leftStick: {x:0,y:0},
+            rightStick: {x:0,y:0},
+            keys: {move:0, roll:0, lookX:0, lookY:0},
+            mouse: {lookX:0, lookY:0}
+        };
+        const keyState = {
+            forward:false, backward:false,
+            rollLeft:false, rollRight:false,
+            lookLeft:false, lookRight:false,
+            lookUp:false, lookDown:false
+        };
+
+        const clamp = (v, min=-1, max=1) => Math.max(min, Math.min(max, v));
+
+        function refreshInput() {
+            input.left.x = clamp(sources.leftStick.x + sources.keys.lookX + sources.mouse.lookX);
+            input.left.y = clamp(sources.leftStick.y + sources.keys.lookY + sources.mouse.lookY);
+            input.right.x = clamp(sources.rightStick.x + sources.keys.roll);
+            input.right.y = clamp(sources.rightStick.y + sources.keys.move);
+        }
 
         // Global App Nesnesi
         window.App = {
             loadLevel: function(id) {
                 document.getElementById('menu-layer').style.display = 'none';
                 document.getElementById('game-ui').style.display = 'block';
-                
+
+                polyps = [];
+                state.score = 0;
+                state.targetScore = 0;
+                document.getElementById('score-txt').innerText = '0/0';
+                document.getElementById('status-txt').innerText = 'STABİL';
+                document.getElementById('status-txt').style.color = '#0f0';
+
                 let caseName = "NAVİGASYON";
                 if(id===1) caseName = "POLİPEKTOMİ";
                 if(id===2) caseName = "ÜLSER TANISI";
                 document.getElementById('case-name-txt').innerText = caseName;
+
+                if(renderer && renderer.domElement && renderer.domElement.parentNode) {
+                    renderer.domElement.parentNode.removeChild(renderer.domElement);
+                }
 
                 init3D(id);
                 state.active = true;
@@ -334,6 +384,51 @@
             }
         };
 
+        function updateKeysFromState() {
+            sources.keys.move = (keyState.backward ? 1 : 0) - (keyState.forward ? 1 : 0);
+            sources.keys.roll = (keyState.rollRight ? 1 : 0) - (keyState.rollLeft ? 1 : 0);
+            sources.keys.lookX = (keyState.lookRight ? 1 : 0) - (keyState.lookLeft ? 1 : 0);
+            sources.keys.lookY = (keyState.lookDown ? 1 : 0) - (keyState.lookUp ? 1 : 0);
+            refreshInput();
+        }
+
+        function setupKeyboard() {
+            const assign = (code, pressed) => {
+                switch(code) {
+                    case 'KeyW': keyState.forward = pressed; break;
+                    case 'KeyS': keyState.backward = pressed; break;
+                    case 'KeyA': keyState.rollLeft = pressed; break;
+                    case 'KeyD': keyState.rollRight = pressed; break;
+                    case 'ArrowLeft': keyState.lookLeft = pressed; break;
+                    case 'ArrowRight': keyState.lookRight = pressed; break;
+                    case 'ArrowUp': keyState.lookUp = pressed; break;
+                    case 'ArrowDown': keyState.lookDown = pressed; break;
+                }
+                updateKeysFromState();
+            };
+
+            window.addEventListener('keydown', e => { if(!e.repeat) assign(e.code, true); });
+            window.addEventListener('keyup', e => assign(e.code, false));
+        }
+
+        function setupMouseLook() {
+            let active = false; let decay;
+            window.addEventListener('mousedown', () => { active = true; });
+            window.addEventListener('mouseup', () => {
+                active = false;
+                sources.mouse.lookX = 0; sources.mouse.lookY = 0;
+                refreshInput();
+            });
+            window.addEventListener('mousemove', e => {
+                if(!active) return;
+                sources.mouse.lookX = clamp(e.movementX * 0.02);
+                sources.mouse.lookY = clamp(e.movementY * 0.02);
+                refreshInput();
+                clearTimeout(decay);
+                decay = setTimeout(() => { sources.mouse.lookX = 0; sources.mouse.lookY = 0; refreshInput(); }, 60);
+            });
+        }
+
         function notify(msg, color="#fff") {
             const el = document.getElementById('notification');
             el.innerText = msg;
@@ -369,12 +464,15 @@
             // İçerik
             createColon();
             createTools();
-            
+
             if(levelId === 1) createPolyp(-200, 'polyp');
             if(levelId === 2) createPolyp(-300, 'ulcer');
 
-            setupJoystick('joy-left', input.look);
-            setupJoystick('joy-right', input.move);
+            state.targetScore = polyps.length;
+            document.getElementById('score-txt').innerText = `${state.score}/${state.targetScore}`;
+
+            setupJoystick('joy-left', sources.leftStick);
+            setupJoystick('joy-right', sources.rightStick);
 
             animate();
         }
@@ -522,13 +620,13 @@
                         notify("POLİP REZEKE EDİLDİ", "#0f0");
                         hit = true;
                         state.score++;
-                        document.getElementById('score-txt').innerText = state.score + "/1";
+                        document.getElementById('score-txt').innerText = state.score + "/" + state.targetScore;
                     }
                     else if(state.tool === 'biopsy' && p.userData.type === 'ulcer') {
                         notify("BİYOPSİ ALINDI", "#0f0");
                         hit = true;
                         state.score++;
-                        document.getElementById('score-txt').innerText = state.score + "/1";
+                        document.getElementById('score-txt').innerText = state.score + "/" + state.targetScore;
                     }
                     else {
                         notify("YANLIŞ ALET / HEDEF", "#ffaa00");
@@ -536,6 +634,12 @@
                     }
                 }
             });
+
+            if(state.score >= state.targetScore && state.targetScore > 0) {
+                notify("TÜM LEZYONLAR TEDAVİ EDİLDİ", "#0f0");
+                document.getElementById('status-txt').innerText = 'TAMAMLANDI';
+                document.getElementById('status-txt').style.color = '#0f0';
+            }
 
             if(!hit) notify("BOŞ İŞLEM");
         }
@@ -554,8 +658,9 @@
                 const fx = Math.cos(angle)*dist, fy = Math.sin(angle)*dist;
                 handle.style.transform = `translate(${fx}px, ${fy}px)`;
                 outObj.x = fx/max; outObj.y = fy/max;
+                refreshInput();
             };
-            const handleEnd = () => { active=false; handle.style.transform=`translate(0,0)`; outObj.x=0; outObj.y=0; };
+            const handleEnd = () => { active=false; handle.style.transform=`translate(0,0)`; outObj.x=0; outObj.y=0; refreshInput(); };
 
             base.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
             window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
@@ -565,6 +670,11 @@
             window.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
             window.addEventListener('touchend', handleEnd);
         }
+
+        // Ekstra giriş yöntemleri (klavye + fare)
+        setupKeyboard();
+        setupMouseLook();
+        refreshInput();
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
